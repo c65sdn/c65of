@@ -15,8 +15,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Class and attribute names are the wire names os-ken exposes.
-# pylint: disable=invalid-name
+# Wire names from os-ken; the attributes are set by the constructor the codec
+# compiles from _FIELDS, which pylint cannot see.
+# pylint: disable=invalid-name,no-member
 
 import struct
 
@@ -283,7 +284,7 @@ class nd_option(Codec):
         return self._MIN_LEN
 
 
-class nd_option_la(nd_option):
+class nd_option_la(nd_option):  # pylint: disable=abstract-method
     """Base for the link-layer address options.
 
     ``hw_src`` holds the first 6 octets of the address and ``data`` the rest

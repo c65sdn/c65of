@@ -15,8 +15,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-# Class and attribute names are the wire names os-ken exposes.
-# pylint: disable=invalid-name
+# Wire names from os-ken; the attributes are set by the constructor the codec
+# compiles from _FIELDS, which pylint cannot see.
+# pylint: disable=invalid-name,no-member
 
 import struct
 

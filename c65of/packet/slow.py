@@ -119,10 +119,7 @@ class lacp(PacketBase):  # pylint: disable=invalid-name
     _TRM_PACK_STR = "!BB50x"
     _TRM_PACK_LEN = struct.calcsize(_TRM_PACK_STR)
     _ALL_PACK_LEN = (
-        _HLEN_PACK_LEN
-        + _ACTPRT_INFO_PACK_LEN * 2
-        + _COL_INFO_PACK_LEN
-        + _TRM_PACK_LEN
+        _HLEN_PACK_LEN + _ACTPRT_INFO_PACK_LEN * 2 + _COL_INFO_PACK_LEN + _TRM_PACK_LEN
     )
 
     _MIN_LEN = _ALL_PACK_LEN
@@ -212,7 +209,7 @@ class lacp(PacketBase):  # pylint: disable=invalid-name
     def parser(cls, buf):
         """Decode a LACPDU, which is always exactly ``_ALL_PACK_LEN`` octets."""
         assert cls._ALL_PACK_LEN == len(buf)
-        (subtype, version) = struct.unpack_from(cls._HLEN_PACK_STR, buf)
+        subtype, version = struct.unpack_from(cls._HLEN_PACK_STR, buf)
         assert SLOW_SUBTYPE_LACP == subtype
         assert cls.LACP_VERSION_NUMBER == version
         fields = {"version": version}
@@ -233,13 +230,13 @@ class lacp(PacketBase):  # pylint: disable=invalid-name
                 ("%s_state_%s" % (role, flag), (values[7] >> bit) & 1)
                 for bit, flag in enumerate(_STATE_FLAGS)
             )
-        (collector_tag, collector_length, max_delay) = struct.unpack_from(
+        collector_tag, collector_length, max_delay = struct.unpack_from(
             cls._COL_INFO_PACK_STR, buf, offset
         )
         assert cls.LACP_TLV_TYPE_COLLECTOR == collector_tag
         assert cls._COL_INFO_PACK_LEN == collector_length
         offset += cls._COL_INFO_PACK_LEN
-        (terminator_tag, terminator_length) = struct.unpack_from(
+        terminator_tag, terminator_length = struct.unpack_from(
             cls._TRM_PACK_STR, buf, offset
         )
         assert cls.LACP_TLV_TYPE_TERMINATOR == terminator_tag
