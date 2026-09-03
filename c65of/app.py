@@ -27,9 +27,12 @@ control channel.
 
 import contextlib
 import importlib
+import importlib.util
 import inspect
 import logging
+import os
 import queue
+import sys
 
 from c65of import hub
 
@@ -219,12 +222,39 @@ class AppManager:
         finally:
             manager.close()
 
+    @staticmethod
+    def import_app_module(name):
+        """Import an application by dotted module name or by file path.
+
+        A path is what ``--ryu-app-lists`` is given for an application that
+        is not on the import path, such as a REST app shipped beside the
+        controller rather than inside it.
+        """
+        if os.sep not in name:
+            return importlib.import_module(name)
+        path = os.path.abspath(name)
+        spec = importlib.util.spec_from_file_location(
+            os.path.splitext(os.path.basename(path))[0], path
+        )
+        if spec is None or spec.loader is None:
+            raise ImportError("cannot load an application from %s" % name)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        # The file's own directory goes on the path so that an application
+        # split across sibling files can import them.
+        sys.path.append(os.path.dirname(path))
+        try:
+            spec.loader.exec_module(module)
+        finally:
+            sys.path.remove(os.path.dirname(path))
+        return module
+
     def load_app(self, name):
-        """Return the single :class:`OFApp` subclass defined by module ``name``."""
-        module = importlib.import_module(name)
+        """Return the single :class:`OFApp` subclass defined by ``name``."""
+        module = self.import_app_module(name)
         for _, value in inspect.getmembers(module, inspect.isclass):
             if issubclass(value, OFApp) and value is not OFApp:
-                if value.__module__ == name:
+                if value.__module__ == module.__name__:
                     return value
         return None
 

@@ -907,3 +907,34 @@ def test_datapath_id_is_set_before_observers_see_the_features_reply(channel):
     finally:
         observer.stop()
         APPS.pop(observer.name, None)
+
+
+def test_queued_message_is_sent_even_though_close_races_it(pair):
+    """A message queued before close() still reaches the switch.
+
+    close() flips the state and then queues its sentinel, so a send loop that
+    tested the state before dequeuing would drop whatever was already in
+    flight. hello_failed depends on this: it queues an error and closes, and
+    the switch has to see the error rather than a bare disconnect.
+    """
+    datapath, client = pair
+    datapath.set_state(HANDSHAKE_DISPATCHER)
+    # Queue first, then flip the state as close() does, and only then let the
+    # send loop run: with the state tested before the dequeue, this is exactly
+    # the interleaving that dropped the message.
+    datapath.hello_failed("no compatible version found")
+    datapath.set_state(DEAD_DISPATCHER)
+    hub.spawn(datapath._send_loop)  # pylint: disable=protected-access
+    client.settimeout(SOCKET_TIMEOUT)
+    raw = b""
+    while len(raw) < 8:
+        chunk = client.recv(8 - len(raw))
+        assert chunk, "closed before the error was sent"
+        raw += chunk
+    version, msg_type, length, _xid = struct.unpack("!BBHI", raw)
+    assert (version, msg_type) == (ofp.OFP_VERSION, ofp.OFPT_ERROR)
+    body = b""
+    while len(body) < length - 8:
+        body += client.recv(length - 8 - len(body))
+    err_type, err_code = struct.unpack_from("!HH", body)
+    assert (err_type, err_code) == (ofp.OFPET_HELLO_FAILED, ofp.OFPHFC_INCOMPATIBLE)
