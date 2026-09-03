@@ -13,6 +13,11 @@ disable=
     too-many-positional-arguments,
 # %-formatting is the house style shared with faucet.
     consider-using-f-string,
+# Constructors are compiled by c65of.codec from the declared wire layout, so
+# pylint cannot see where an attribute is first assigned. The declared
+# attributes are published on the class with their defaults instead.
+    attribute-defined-outside-init,
+    access-member-before-definition,
 
 [FORMAT]
 max-line-length=100

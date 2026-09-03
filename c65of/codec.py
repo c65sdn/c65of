@@ -128,17 +128,22 @@ class Codec:
     ``_FMT``       struct format for the fixed part, big-endian implied.
     ``_FIELDS``    space separated names for the values in ``_FMT``, in order.
     ``_DEFAULTS``  ``{name: default}`` overriding the default of ``0``.
+    ``_CODERS``    ``{name: type_desc}`` for fields whose attribute form differs
+                   from their wire form, e.g. a MAC held as text.
     ``_EXTRA``     space separated attributes not in ``_FMT`` (default None).
     ``_LEAD``      space separated leading parameters with no default.
+    ``_HIDDEN``    space separated attributes kept out of the JSON dict form.
     ``_TYPE``      ``{'ascii': (...), 'utf-8': (...)}`` JSON coercions.
-    ``_ABSTRACT``  set True to skip ``__init__`` generation.
+    ``_ABSTRACT``  set True to skip ``__init__`` generation. Not inherited.
     """
 
     _FMT = ""
     _FIELDS = ""
     _EXTRA = ""
     _LEAD = ""
+    _HIDDEN = ""
     _DEFAULTS = {}
+    _CODERS = {}
     _TYPE = {}
     _ABSTRACT = False
     # Pass constructor extras (a datapath) down into nested from_jsondict.
@@ -166,27 +171,63 @@ class Codec:
                     "%s: _FIELDS has %d names for format %r"
                     % (cls.__name__, len(cls._NAMES), cls._FMT)
                 )
+        lead = tuple(cls._LEAD.split())
         extra = tuple(cls._EXTRA.split())
-        cls._ATTRS = cls._NAMES + extra
-        if cls._ABSTRACT or "__init__" in own:
+        hidden = frozenset(cls._HIDDEN.split())
+        # Sorted, not in declaration order: os-ken enumerates attributes with
+        # inspect.getmembers, so its str() output is alphabetical, and callers
+        # compare those strings.
+        cls._ATTRS = tuple(
+            sorted(name for name in lead + cls._NAMES + extra if name not in hidden)
+        )
+        # _ABSTRACT is declared per class, never inherited: a concrete
+        # subclass of an abstract base still wants a generated __init__.
+        if own.get("_ABSTRACT", False) or "__init__" in own:
             return
-        params = [(n, REQUIRED) for n in cls._LEAD.split()]
+        params = [(n, REQUIRED) for n in lead]
         params += [(n, cls._DEFAULTS.get(n, 0)) for n in cls._NAMES]
         params += [(n, cls._DEFAULTS.get(n, None)) for n in extra]
-        if params:
-            cls.__init__ = _gen_init(cls, params, own.get("_init_hook"))
+        if not params:
+            return
+        # Publish the declared attributes on the class with their defaults.
+        # The generated __init__ always assigns every one, so these are never
+        # read; they exist so the attribute set is visible to readers, to
+        # hasattr, and to static analysis, which cannot see a compiled
+        # constructor.
+        for name, default in params:
+            if name not in own:
+                setattr(cls, name, None if default is REQUIRED else default)
+        # _init_hook is inherited: a family of classes shares one.
+        cls.__init__ = _gen_init(cls, params, getattr(cls, "_init_hook", None))
 
     # -- fixed part ------------------------------------------------------
 
     def pack_fixed(self):
         """Pack the ``_FMT`` fields of this object."""
         cls = type(self)
-        return cls._STRUCT.pack(*[getattr(self, n) for n in cls._NAMES])
+        coders = cls._CODERS
+        values = [getattr(self, name) for name in cls._NAMES]
+        if coders:
+            values = [
+                coders[name].from_user(value) if name in coders else value
+                for name, value in zip(cls._NAMES, values)
+            ]
+        return cls._STRUCT.pack(*values)
 
     @classmethod
     def unpack_fixed(cls, buf, offset=0):
         """Return ``{attr: value}`` for the ``_FMT`` fields at ``offset``."""
-        return dict(zip(cls._NAMES, cls._STRUCT.unpack_from(buf, offset)))
+        fields = dict(zip(cls._NAMES, cls._STRUCT.unpack_from(buf, offset)))
+        for name, coder in cls._CODERS.items():
+            fields[name] = coder.to_user(fields[name])
+        return fields
+
+    @classmethod
+    def from_fields(cls, fields, **extra):
+        """Instantiate from ``{attr: value}``, mangling the parameter names."""
+        kwargs = {mangle(name): value for name, value in fields.items()}
+        kwargs.update(extra)
+        return cls(**kwargs)
 
     # -- JSON dict form --------------------------------------------------
 
