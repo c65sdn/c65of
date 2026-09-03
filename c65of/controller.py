@@ -206,8 +206,12 @@ class Datapath:
             self.socket.shutdown(socket.SHUT_WR)
 
     def _send_loop(self):
+        # Loop on the queue rather than on the state: close() flips the state
+        # and then queues the sentinel, so testing the state first would drop
+        # whatever was already queued -- including the error message
+        # hello_failed sends immediately before closing.
         try:
-            while self.state != DEAD_DISPATCHER:
+            while True:
                 buf, close_socket = self.send_q.get()
                 if buf is None:
                     break
