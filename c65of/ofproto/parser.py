@@ -27,6 +27,7 @@ any code, and then only for the tail.
 import struct
 
 from c65of.codec import REQUIRED, Codec, TLVRegistry, msg_pack_into
+from c65of.lib.type_desc import MacAddr as _MAC
 from c65of.ofproto import consts as ofproto
 from c65of.ofproto import oxm
 
@@ -652,3 +653,55 @@ for _type in (
     ofproto.OFPIT_CLEAR_ACTIONS,
 ):
     INSTRUCTIONS.classes[_type] = OFPInstructionActions
+
+
+# -- shared structures ------------------------------------------------------
+
+
+class _NulString:
+    """A fixed width, NUL padded name.
+
+    Kept as bytes, as os-ken does; the ``utf-8`` coercion in ``_TYPE`` decodes
+    it for the JSON dict form.
+    """
+
+    @staticmethod
+    def to_user(value):
+        """The name with its NUL padding removed."""
+        return value.rstrip(b"\0")
+
+    @staticmethod
+    def from_user(value):
+        """Bytes; the struct format re-applies the NUL padding."""
+        return value.encode("utf-8") if isinstance(value, str) else value
+
+
+class OFPPort(Codec):
+    """Description of a switch port."""
+
+    _FMT = "I4x6s2x16sIIIIIIII"
+    _FIELDS = (
+        "port_no hw_addr name config state curr advertised supported peer "
+        "curr_speed max_speed"
+    )
+    _CODERS = {"hw_addr": _MAC, "name": _NulString}
+    _TYPE = {"ascii": ("hw_addr",), "utf-8": ("name",)}
+    # os-ken's OFPPort is a namedtuple, so its attribute order is field order.
+    _ATTRS = (
+        "port_no",
+        "hw_addr",
+        "name",
+        "config",
+        "state",
+        "curr",
+        "advertised",
+        "supported",
+        "peer",
+        "curr_speed",
+        "max_speed",
+    )
+
+    @classmethod
+    def parser(cls, buf, offset):
+        """Read a port description from ``buf`` at ``offset``."""
+        return cls.from_fields(cls.unpack_fixed(buf, offset))

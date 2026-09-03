@@ -37,6 +37,8 @@ class ipv6(PacketBase):
 
     _FMT = "IHBB16s16s"
     _FIELDS = "v_tc_flow payload_length nxt hop_limit src dst"
+    _EXTRA = "version traffic_class flow_label ext_hdrs"
+    _HIDDEN = "v_tc_flow"
     _MIN_LEN = 40
     _TYPES = IP_PROTOS
     _IPV6_EXT_HEADER_TYPE = {}
@@ -73,17 +75,6 @@ class ipv6(PacketBase):
         self.src = src
         self.dst = dst
         self.ext_hdrs = ext_hdrs or []
-
-    def iter_attrs(self):
-        yield "version", self.version
-        yield "traffic_class", self.traffic_class
-        yield "flow_label", self.flow_label
-        yield "payload_length", self.payload_length
-        yield "nxt", self.nxt
-        yield "hop_limit", self.hop_limit
-        yield "src", self.src
-        yield "dst", self.dst
-        yield "ext_hdrs", self.ext_hdrs
 
     @classmethod
     def parser(cls, buf):
@@ -280,6 +271,8 @@ class routing_type3(header):
 
     _FMT = "BBBBBB2x"
     _FIELDS = "nxt size type seg cmp pad"
+    _EXTRA = "cmpi cmpe adrs"
+    _HIDDEN = "cmp pad"
     _TYPE = {"asciilist": ("adrs",)}
 
     def __init__(
@@ -295,15 +288,6 @@ class routing_type3(header):
         self._pad = (
             8 - ((len(self.adrs) - 1) * (16 - self.cmpi) + (16 - self.cmpe) % 8)
         ) % 8
-
-    def iter_attrs(self):
-        yield "nxt", self.nxt
-        yield "size", self.size
-        yield "type", self.type
-        yield "seg", self.seg
-        yield "cmpi", self.cmpi
-        yield "cmpe", self.cmpe
-        yield "adrs", self.adrs
 
     @classmethod
     def _get_size(cls, size):
@@ -374,6 +358,8 @@ class fragment(header):
 
     _FMT = "BxHI"
     _FIELDS = "nxt off_m id"
+    _EXTRA = "offset more"
+    _HIDDEN = "off_m"
     _MIN_LEN = 8
 
     def __init__(self, nxt=inet.IPPROTO_TCP, offset=0, more=0, id_=0):
@@ -381,12 +367,6 @@ class fragment(header):
         self.offset = offset
         self.more = more
         self.id = id_
-
-    def iter_attrs(self):
-        yield "nxt", self.nxt
-        yield "offset", self.offset
-        yield "more", self.more
-        yield "id", self.id
 
     @classmethod
     def parser(cls, buf):

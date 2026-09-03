@@ -41,10 +41,14 @@ os-ken's name-prefix heuristic.
 import base64
 import builtins
 import struct
+import sys
 
 RESERVED = frozenset(dir(builtins))
 
-# name -> class, for resolving {"ClassName": {...}} in JSON dicts.
+# name -> class, for resolving {"ClassName": {...}} in JSON dicts. A name can
+# be claimed by more than one class -- icmp.echo and icmpv6.echo, say -- in
+# which case the first registration is what a bare lookup finds and
+# ``cls_from_jsondict_key`` disambiguates by the enclosing class's module.
 REGISTRY = {}
 
 #: Marker for a constructor parameter with no default.
@@ -133,6 +137,7 @@ class Codec:
     ``_EXTRA``     space separated attributes not in ``_FMT`` (default None).
     ``_LEAD``      space separated leading parameters with no default.
     ``_HIDDEN``    space separated attributes kept out of the JSON dict form.
+    ``_ATTRS``     declare to fix attribute order; otherwise sorted.
     ``_TYPE``      ``{'ascii': (...), 'utf-8': (...)}`` JSON coercions.
     ``_ABSTRACT``  set True to skip ``__init__`` generation. Not inherited.
     """
@@ -157,10 +162,7 @@ class Codec:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        existing = REGISTRY.get(cls.__name__)
-        if existing is not None and existing is not cls:
-            raise TypeError("duplicate codec class name %r" % cls.__name__)
-        REGISTRY[cls.__name__] = cls
+        REGISTRY.setdefault(cls.__name__, cls)
         own = cls.__dict__
         if "_FMT" in own or "_FIELDS" in own:
             cls._STRUCT = struct.Struct("!" + cls._FMT)
@@ -174,12 +176,14 @@ class Codec:
         lead = tuple(cls._LEAD.split())
         extra = tuple(cls._EXTRA.split())
         hidden = frozenset(cls._HIDDEN.split())
-        # Sorted, not in declaration order: os-ken enumerates attributes with
-        # inspect.getmembers, so its str() output is alphabetical, and callers
-        # compare those strings.
-        cls._ATTRS = tuple(
-            sorted(name for name in lead + cls._NAMES + extra if name not in hidden)
-        )
+        if "_ATTRS" not in own:
+            # Sorted, not in declaration order: os-ken enumerates attributes
+            # with inspect.getmembers, so its str() output is alphabetical and
+            # callers compare those strings. A class whose reference form is a
+            # namedtuple declares _ATTRS itself to keep field order.
+            cls._ATTRS = tuple(
+                sorted(name for name in lead + cls._NAMES + extra if name not in hidden)
+            )
         # _ABSTRACT is declared per class, never inherited: a concrete
         # subclass of an abstract base still wants a generated __init__.
         if own.get("_ABSTRACT", False) or "__init__" in own:
