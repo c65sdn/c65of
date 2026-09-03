@@ -1,0 +1,12 @@
+*.egg-info/
+*.py[co]
+.coverage
+.coverage.*
+.pytest_cache/
+AUTHORS
+ChangeLog
+__pycache__/
+artifacts/
+build/
+coverage.xml
+dist/

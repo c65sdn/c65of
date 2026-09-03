@@ -1,0 +1,45 @@
+---
+name: Build python packages for release
+
+# pbr derives the version from the git tag, so a release is a tag push.
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+
+env:
+  RELEASE_PY_VER: "3.13"
+
+jobs:
+  python-package:
+    name: "Build and publish python packages"
+    runs-on: ubuntu-latest
+    environment:
+      name: "release"
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+        with:
+          # Full history and tags: pbr reads the version from git describe.
+          fetch-depth: 0
+      - name: Set up python-${{ env.RELEASE_PY_VER }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ env.RELEASE_PY_VER }}
+      - name: Build sdist and wheel
+        run: |
+          pip install -U build
+          python3 -m build
+      - name: Check the built version matches the tag
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [ ! -f "dist/c65of-${tag}.tar.gz" ]; then
+            echo "tag ${tag} did not produce dist/c65of-${tag}.tar.gz:"
+            ls -1 dist
+            exit 1
+          fi
+      - name: Publish python package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

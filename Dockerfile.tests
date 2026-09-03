@@ -1,0 +1,10 @@
+# Multistage so dependency layers survive source-only changes.
+FROM python:3.13-slim AS deps
+WORKDIR /c65of-src
+COPY requirements.txt test-requirements.txt codecheck-requirements.txt ./
+RUN pip3 install --no-cache-dir -r codecheck-requirements.txt
+
+FROM deps AS test
+COPY ./ /c65of-src/
+RUN pip3 install --no-cache-dir --no-deps -e .
+CMD ["./run_tests.sh"]

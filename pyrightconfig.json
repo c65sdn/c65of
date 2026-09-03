@@ -1,0 +1,4 @@
+{
+  "include": ["c65of", "tests"],
+  "typeCheckingMode": "off"
+}
