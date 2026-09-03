@@ -7,6 +7,10 @@ are sent, so both directions are checked against an independent
 implementation of the wire format.
 """
 
+# A protocol channel has a lot of surface: handshake, framing, TLS, echo,
+# shutdown. Splitting the file would only scatter one subject.
+# pylint: disable=too-many-lines
+
 # Copyright (C) 2026 The c65sdn Contributors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -710,14 +714,17 @@ def test_datapath_without_a_brick_drops_events(pair):
     assert datapath.state == MAIN_DISPATCHER
 
 
-def test_malformed_message_ends_the_receive_loop(channel, caplog):
-    """A message the parser cannot decode ends the connection."""
-    switch, datapath = channel.connect()
-    switch.read_raw()
-    switch.send(frame(ofp.OFPT_FEATURES_REPLY, 1, b"\x00" * 4))
-    channel.observer.wait(("state", DEAD_DISPATCHER))
-    assert datapath.state == DEAD_DISPATCHER
-    assert "malformed message" in caplog.text
+def test_a_frame_shorter_than_its_header_is_skipped():
+    """An impossible length is stepped over rather than trusted.
+
+    Trusting it would either desynchronise the stream or wait forever for a
+    frame that cannot arrive, so the parser skips one header and resumes.
+    """
+    parser_ = OFPStreamParser()
+    bad = struct.pack("!BBHI", ofp.OFP_VERSION, ofp.OFPT_ECHO_REQUEST, 2, 1)
+    good = struct.pack("!BBHI", ofp.OFP_VERSION, ofp.OFPT_ECHO_REPLY, 8, 7)
+    msgs = parser_.parse(bad + good)
+    assert [m for m in msgs if m is not None][0].xid == 7
 
 
 # -- listeners --------------------------------------------------------------
@@ -989,3 +996,23 @@ def test_a_switch_with_no_version_in_common_is_told_so(channel, version, version
     assert parsed.code == ofp.OFPHFC_INCOMPATIBLE
     channel.observer.wait(("state", DEAD_DISPATCHER))
     assert datapath.state == DEAD_DISPATCHER
+
+
+def test_a_malformed_message_does_not_drop_the_channel(channel, caplog):
+    """One bad message is logged and skipped; the switch keeps its channel.
+
+    The frame length is validated before the body is parsed, so the stream is
+    still in sync and the next message parses. Dropping the channel would turn
+    a single malformed message into a reconnect -- which is what a control
+    plane fuzz test measures.
+    """
+    switch, datapath = channel.handshake()
+    # A port status claiming a length its body cannot fill.
+    switch.send(frame(ofp.OFPT_PORT_STATUS, 1, b"\x00" * 4))
+    # The channel survives and still answers.
+    switch.send(frame(ofp.OFPT_ECHO_REQUEST, 2, b"ping"))
+    reply = oken_decode(switch.read_raw())
+    assert reply.msg_type == ofp.OFPT_ECHO_REPLY
+    assert reply.data == b"ping"
+    assert datapath.state == MAIN_DISPATCHER
+    assert "malformed OpenFlow message" in caplog.text

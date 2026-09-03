@@ -24,12 +24,15 @@ any code, and then only for the tail.
 # Structures read the layout configuration of sibling classes.
 # pylint: disable=protected-access
 
+import logging
 import struct
 
 from c65of.codec import REGISTRY, REQUIRED, Codec, TLVRegistry, msg_pack_into
 from c65of.lib.type_desc import MacAddr as _MAC
 from c65of.ofproto import consts as ofproto
 from c65of.ofproto import oxm
+
+LOG = logging.getLogger(__name__)
 
 _MSG_TYPES = TLVRegistry("message")
 ACTIONS = TLVRegistry("action")
@@ -179,7 +182,22 @@ def msg(datapath, version, msg_type, msg_len, xid, buf):
     cls = _MSG_TYPES.lookup(msg_type)
     if cls is None:
         return None
-    return cls.parser(datapath, version, msg_type, msg_len, xid, buf)
+    try:
+        return cls.parser(datapath, version, msg_type, msg_len, xid, buf)
+    except Exception:  # pylint: disable=broad-except
+        # A switch that sends one malformed message keeps its channel: the
+        # frame length was already validated, so the stream is still in sync
+        # and the next message parses. Dropping the channel here would turn a
+        # single bad message into a reconnect.
+        LOG.exception(
+            "malformed OpenFlow message from the switch: "
+            "version 0x%02x msg_type %d msg_len %d xid %d",
+            version,
+            msg_type,
+            msg_len,
+            xid,
+        )
+        return None
 
 
 def ofp_msg_from_jsondict(datapath, jsondict):
