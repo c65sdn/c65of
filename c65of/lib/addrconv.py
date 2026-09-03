@@ -28,13 +28,14 @@ import socket
 class _IPConverter:
     """Packed/text conversion for one IP version."""
 
-    __slots__ = ("family", "size", "_net", "_addr")
+    __slots__ = ("family", "size", "_net", "_addr", "_any")
 
     def __init__(self, version):
         self.family = socket.AF_INET if version == 4 else socket.AF_INET6
         self.size = 4 if version == 4 else 16
         self._net = ipaddress.IPv4Network if version == 4 else ipaddress.IPv6Network
         self._addr = ipaddress.IPv4Address if version == 4 else ipaddress.IPv6Address
+        self._any = "0.0.0.0" if version == 4 else "::"
 
     def text_to_bin(self, text):
         """Packed address, or ``(addr, netmask)`` for a ``addr/mask`` text.
@@ -47,8 +48,17 @@ class _IPConverter:
         try:
             return socket.inet_pton(self.family, text)
         except OSError:
-            net = self._net(text, strict=False)
-            return net.network_address.packed, net.netmask.packed
+            pass
+        # A prefix length gives the mask, but the address keeps the bits it
+        # was written with: masking it is the match's job, not ours, and a
+        # caller that wrote host bits meant them.
+        addr, _, mask = text.partition("/")
+        packed = socket.inet_pton(self.family, addr)
+        if mask.isdigit():
+            netmask = self._net("%s/%s" % (self._any, mask)).netmask.packed
+        else:
+            netmask = socket.inet_pton(self.family, mask)
+        return packed, netmask
 
     def bin_to_text(self, packed):
         """Canonical text for a packed address."""

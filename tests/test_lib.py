@@ -54,7 +54,21 @@ def test_ipv6_conversion(text):
 
 
 @pytest.mark.parametrize(
-    "text", ["10.0.0.0/8", "192.168.1.0/255.255.255.0", "2001:db8::/32"]
+    "text",
+    [
+        "10.0.0.0/8",
+        "192.168.1.0/255.255.255.0",
+        "2001:db8::/32",
+        # Host bits set: the address keeps them, only the mask comes from the
+        # prefix length. Testing canonical networks alone hid a bug here.
+        "10.0.0.1/8",
+        "192.168.1.5/24",
+        "2001:db8::5/32",
+        "10.0.0.1/255.0.0.0",
+        "0.0.0.0/0",
+        "::/0",
+        "fe80::1/128",
+    ],
 )
 def test_prefix_returns_addr_and_netmask(text):
     """A prefix converts to the (addr, netmask) pair a masked match wants."""
