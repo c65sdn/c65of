@@ -33,7 +33,7 @@ import struct
 from c65of.codec import REQUIRED, Codec, msg_pack_into
 from c65of.lib.type_desc import MacAddr as _MAC
 from c65of.ofproto import consts as ofproto
-from c65of.ofproto.parser import (
+from c65of.ofproto.base import (
     METER_BANDS,
     QUEUE_PROPS,
     MsgBase,

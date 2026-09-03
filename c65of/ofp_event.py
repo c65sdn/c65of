@@ -23,7 +23,8 @@ than written out, so a new message needs no entry here.
 import sys
 
 from c65of.app import EventBase
-from c65of.ofproto import parser as _parser
+from c65of.ofproto import base as _base
+from c65of.ofproto import parser as _parser  # noqa: F401  (registers every message)
 
 
 class EventOFPMsgBase(EventBase):
@@ -86,7 +87,7 @@ def generate():
 def _message_classes():
     """Every message class currently registered, including subclasses."""
     seen = set()
-    pending = [_parser.MsgBase]
+    pending = [_base.MsgBase]
     while pending:
         cls = pending.pop()
         for sub in cls.__subclasses__():

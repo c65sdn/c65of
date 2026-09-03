@@ -1,4 +1,13 @@
-"""OpenFlow 1.3 wire protocol."""
+"""OpenFlow 1.3 wire protocol.
+
+Importing this package gives the constants and the match field vocabulary
+together, which is how a consumer wants them::
+
+    from c65of import ofproto as ofp
+    ofp.OFPP_CONTROLLER, ofp.OXM_OF_ETH_DST
+
+The structures live in :mod:`c65of.ofproto.parser`.
+"""
 
 # Copyright (C) 2026 The c65sdn Contributors
 #
@@ -14,3 +23,8 @@
 # implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+# The constants and the generated OXM names are the module's public surface.
+# pylint: disable=wildcard-import,unused-wildcard-import
+from c65of.ofproto.consts import *  # noqa: F401,F403
+from c65of.ofproto.oxm import *  # noqa: F401,F403
