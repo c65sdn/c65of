@@ -26,7 +26,7 @@ jobs:
           # Full history and tags: pbr reads the version from git describe.
           fetch-depth: 0
       - name: Set up python-${{ env.RELEASE_PY_VER }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v7
         with:
           python-version: ${{ env.RELEASE_PY_VER }}
       - name: Build sdist and wheel
