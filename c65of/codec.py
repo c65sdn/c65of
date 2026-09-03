@@ -195,9 +195,9 @@ class Codec:
             return
         # Publish the declared attributes on the class with their defaults.
         # The generated __init__ always assigns every one, so these are never
-        # read; they exist so the attribute set is visible to readers, to
-        # hasattr, and to static analysis, which cannot see a compiled
-        # constructor.
+        # read; they exist so the attribute set is visible to a reader of the
+        # class and to hasattr. Set at runtime, so a static checker still
+        # cannot see them.
         for name, default in params:
             if name not in own:
                 setattr(cls, name, None if default is REQUIRED else default)
@@ -304,10 +304,26 @@ class Codec:
         return value
 
     @classmethod
+    def cls_from_jsondict_key(cls, name):
+        """Resolve a class name appearing inside this class's JSON dict.
+
+        The enclosing class's own module wins, so a name two protocols both
+        claim resolves to the one that belongs with the enclosing structure:
+        an ``icmpv6`` holding an ``echo`` means ``icmpv6.echo``, not
+        ``icmp.echo``.
+        """
+        found = getattr(sys.modules[cls.__module__], name, None)
+        if isinstance(found, type) and issubclass(found, Codec):
+            return found
+        return REGISTRY[name]
+
+    @classmethod
     def obj_from_jsondict(cls, jsondict, **extra):
         """Instantiate the class named by a single key ``{"Name": {...}}``."""
-        ((name, params),) = jsondict.items()
-        return REGISTRY[name].from_jsondict(params, **extra)
+        if len(jsondict) != 1:
+            raise ValueError("expected a single class name, got %r" % (list(jsondict),))
+        name, params = next(iter(jsondict.items()))
+        return cls.cls_from_jsondict_key(name).from_jsondict(params, **extra)
 
     @classmethod
     def from_jsondict(cls, params, decode_string=base64.b64decode, **extra):
