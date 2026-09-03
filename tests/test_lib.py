@@ -217,3 +217,21 @@ def test_non_string_addresses_are_accepted(value):
     reference = ref_addrconv.ipv6 if value.version == 6 else ref_addrconv.ipv4
     assert converter.text_to_bin(value) == reference.text_to_bin(value)
     assert converter.text_to_bin(value) == converter.text_to_bin(str(value))
+
+
+@pytest.mark.parametrize("text", ["not-an-ip/8", "999.1.1.1/8", "10.0.0.0/notanumber"])
+def test_malformed_prefix_raises_value_error(text):
+    """A malformed address raises ValueError, which is what callers catch.
+
+    faucet validates ACL config by catching ValueError; an OSError from
+    inet_pton escapes that and crashes config parsing instead of reporting a
+    bad address.
+    """
+    with pytest.raises(ValueError):
+        addrconv.ipv4.text_to_bin(text)
+
+
+def test_malformed_ipv6_prefix_raises_value_error():
+    """The IPv6 converter raises the same way."""
+    with pytest.raises(ValueError):
+        addrconv.ipv6.text_to_bin("fe80::zz/64")

@@ -52,12 +52,14 @@ class _IPConverter:
         # A prefix length gives the mask, but the address keeps the bits it
         # was written with: masking it is the match's job, not ours, and a
         # caller that wrote host bits meant them.
+        # ipaddress, not inet_pton: a malformed address has to raise
+        # ValueError, which is what callers catch when validating config.
         addr, _, mask = text.partition("/")
-        packed = socket.inet_pton(self.family, addr)
+        packed = self._addr(addr).packed
         if mask.isdigit():
             netmask = self._net("%s/%s" % (self._any, mask)).netmask.packed
         else:
-            netmask = socket.inet_pton(self.family, mask)
+            netmask = self._addr(mask).packed
         return packed, netmask
 
     def bin_to_text(self, packed):
