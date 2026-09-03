@@ -39,6 +39,19 @@ takes the underscore. Two live call sites change --
 ``clib/valve_test_lib.py`` reading ``icmp_pkt.type_`` on an ICMPv4 packet,
 is a latent ``AttributeError`` against os-ken today that the change fixes.
 
+**``app_manager.OSKenApp`` becomes ``c65of.app.OFApp``.** A class rename in
+``faucet/valve_ryuapp.py``; nothing else about the base class changes.
+
+**``hub.StreamServer`` is provided**, for TCP, IPv6 and the unix domain
+socket ``faucet/faucet_event.py`` listens on. Unlike os-ken's, it can be
+stopped: closing a socket does not interrupt a blocked ``accept``, so the
+accept loop wakes periodically and checks. ``hub.WSGIServer`` and
+``hub.WebSocketWSGI`` are NOT provided -- they were eventlet's, and the only
+consumer is the already-vendored ``ofctl_rest/wsgi.py``, which owns them.
+
+**``os_ken.exception.OSKenException`` is not provided.** Its only consumer is
+``ofctl_rest/ofctl_rest.py``, which should declare its own base exception.
+
 **No hub monkeypatch.** ``c65of.hub.spawn`` returns a daemon thread, so the
 ``HubThread.__init__`` patch in ``faucet/valve_ryuapp.py`` that stops the
 interpreter hanging at exit can go, along with the ``HUB_TYPE`` check.

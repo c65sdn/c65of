@@ -15,6 +15,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import queue
 import threading
 
 import pytest
@@ -214,3 +215,49 @@ def test_ofp_state_change_events():
     assert ofp_event.EventOFPStateChange("dp").datapath == "dp"
     port = ofp_event.EventOFPPortStateChange("dp", 1, 3)
     assert (port.datapath, port.reason, port.port_no) == ("dp", 1, 3)
+
+
+@pytest.mark.parametrize("unix", [False, True])
+def test_stream_server_accepts_connections(tmp_path, unix):
+    """A connection reaches the handler on its own thread, TCP or unix socket."""
+    # pylint: disable=import-outside-toplevel
+    import socket
+
+    from c65of.hub import StreamServer
+
+    got = queue.Queue()
+
+    def handle(sock, _addr):
+        got.put(sock.recv(16))
+        sock.close()
+
+    listen = (str(tmp_path / "sock"), None) if unix else ("127.0.0.1", 0)
+    server = StreamServer(listen, handle)
+    try:
+        hub.spawn(server.serve_forever)
+        family = socket.AF_UNIX if unix else socket.AF_INET
+        client = socket.socket(family, socket.SOCK_STREAM)
+        client.settimeout(5)
+        client.connect(server.address if not unix else listen[0])
+        client.sendall(b"hello")
+        assert got.get(timeout=5) == b"hello"
+        client.close()
+    finally:
+        server.close()
+
+
+def test_stream_server_stops_when_closed():
+    """serve_forever returns once the listening socket is closed."""
+    # pylint: disable=import-outside-toplevel
+    from c65of.hub import StreamServer
+
+    server = StreamServer(("127.0.0.1", 0), lambda sock, addr: None)
+    done = threading.Event()
+
+    def serve():
+        server.serve_forever()
+        done.set()
+
+    hub.spawn(serve)
+    server.close()
+    assert done.wait(5)
