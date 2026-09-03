@@ -74,6 +74,21 @@ either.
 why ``valve_of.meteradd`` builds a fake datapath whose ``send_msg`` records
 the message. That stand-in can go.
 
+**The two OF1.4/1.5 stats events are absent.**
+``ofp_event.EventOFPStatsReply`` and ``EventOFPQueueDescStatsReply`` have no
+OpenFlow 1.3 message behind them. Their only consumer is
+``ofctl_rest/ofctl_rest.py``, which registers handlers across several protocol
+versions; an OF1.3-only controller drops those two registrations.
+
+**Nicira conntrack.** ``parser.NXActionCT``, ``NXActionCTClear`` and
+``NXActionNAT`` are here, along with the whole NXM match field table, so the
+``ct_state`` / ``ct_zone`` / ``ct_mark`` / ``ct_label`` matches work
+unchanged. A standalone ``NXActionNAT`` serializes with the trailing pad its
+own length field claims; os-ken omits the pad and emits fewer bytes than it
+declares. Inside an instruction -- the only way an action reaches the wire --
+the two are byte identical, verified across the flag-only, address-range and
+port-range forms.
+
 **Protocols not ported.** TCP, UDP, SCTP, GRE, OSPF, IGMP, MPLS, PBB, LLC and
 BPDU parsing have no consumer in faucet, so ``ipv4.parser`` and
 ``ipv6.parser`` return no next class for them and the payload stays raw

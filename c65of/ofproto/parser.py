@@ -179,11 +179,24 @@ from c65of.ofproto.multipart import (
     ONFFlowMonitorStatsRequest,
 )
 
+from c65of.ofproto.nx import (
+    NXAction,
+    NXActionCT,
+    NXActionCTClear,
+    NXActionNAT,
+    NXActionUnknown,
+)
+
 __all__ = [
     "ACTIONS",
     "INSTRUCTIONS",
     "METER_BANDS",
     "MsgBase",
+    "NXAction",
+    "NXActionCT",
+    "NXActionCTClear",
+    "NXActionNAT",
+    "NXActionUnknown",
     "OFPAction",
     "OFPActionCopyTtlIn",
     "OFPActionCopyTtlOut",
