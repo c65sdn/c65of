@@ -25,7 +25,19 @@ from c65of.ofproto import consts
 
 @pytest.mark.parametrize(
     "value",
-    ["10.0.0.1", "10.0.0.0/8", "192.168.0.0/255.255.0.0", "fe80::1", "2001:db8::/32"],
+    [
+        "10.0.0.1",
+        "10.0.0.0/8",
+        "192.168.0.0/255.255.0.0",
+        "fe80::1",
+        "2001:db8::/32",
+        # Host bits set: kept, not masked away.
+        "10.0.0.1/8",
+        "192.168.1.5/24",
+        "2001:db8::5/32",
+        "0.0.0.0/0",
+        "::/0",
+    ],
 )
 def test_to_match_ip(value):
     """An address, a prefix length and a dotted mask all agree with os-ken."""

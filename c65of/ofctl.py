@@ -50,8 +50,11 @@ def to_match_ip(value):
         return value
     addr, mask = value.split("/")
     if mask.isdigit():
-        network = ipaddress.ip_network(value, strict=False)
-        return str(network.network_address), str(network.netmask)
+        # The prefix length gives the mask; the address keeps the bits it was
+        # written with, as the addr/mask form already does.
+        family = ipaddress.ip_address(addr)
+        any_addr = "0.0.0.0" if family.version == 4 else "::"
+        return addr, str(ipaddress.ip_network("%s/%s" % (any_addr, mask)).netmask)
     return addr, mask
 
 

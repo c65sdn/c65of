@@ -21,6 +21,7 @@ than written out, so a new message needs no entry here.
 # limitations under the License.
 
 import sys
+import time
 
 from c65of.app import EventBase
 from c65of.ofproto import base as _base
@@ -28,9 +29,15 @@ from c65of.ofproto import parser as _parser  # noqa: F401  (registers every mess
 
 
 class EventOFPMsgBase(EventBase):
-    """An OpenFlow message that arrived on a datapath's channel."""
+    """An OpenFlow message that arrived on a datapath's channel.
+
+    ``timestamp`` is when the channel produced the event, not when a handler
+    got to it: consumers use it to age what the message reports, and the
+    handler may run well after the event was queued.
+    """
 
     def __init__(self, msg):
+        self.timestamp = time.time()
         self.msg = msg
 
 

@@ -264,6 +264,7 @@ class AppManager:
             cls = self.load_app(name)
             if cls is None:
                 raise ImportError("%s defines no OFApp subclass" % name)
+            LOG.info("loading application %s", name)
             self.applications_cls[name] = cls
             # _CONTEXTS is the declaration name applications already use.
             for (
@@ -285,6 +286,7 @@ class AppManager:
     def instantiate_apps(self, **kwargs):
         """Instantiate and start every loaded application."""
         for cls in self.applications_cls.values():
+            LOG.info("instantiating application %s", cls.__name__)
             app = cls(**kwargs)
             APPS[app.name] = app
             self.applications[app.name] = app

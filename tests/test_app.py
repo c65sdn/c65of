@@ -315,3 +315,23 @@ def test_load_app_from_a_missing_path():
     """A path that is not a module is an error naming the path."""
     with pytest.raises((ImportError, FileNotFoundError)):
         AppManager().load_app("/nonexistent/nope.py")
+
+
+def test_ofp_events_carry_a_timestamp():
+    """A message event records when the channel produced it.
+
+    Consumers age what the message reports against this, and the handler may
+    run well after the event was queued, so it cannot be read at handling
+    time.
+    """
+    # pylint: disable=import-outside-toplevel
+    import time
+
+    from c65of import ofp_event
+    from c65of.ofproto.messages import OFPPacketIn
+
+    ofp_event.generate()
+    before = time.time()
+    ev = ofp_event.ofp_msg_to_ev(OFPPacketIn(None))
+    after = time.time()
+    assert before <= ev.timestamp <= after
