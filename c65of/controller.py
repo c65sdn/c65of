@@ -360,6 +360,7 @@ class OpenFlowController:
         self.is_active = True
         sock = self._listen(self.tcp_port)
         self.tcp_address = sock.getsockname()
+        LOG.info("listening for OpenFlow on %s:%s", self.listen_host, self.tcp_port)
         self._accept_on(sock, None)
         if self.use_ssl:
             sock = self._listen(self.ssl_port)
