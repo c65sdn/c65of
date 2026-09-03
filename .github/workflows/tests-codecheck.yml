@@ -1,0 +1,28 @@
+---
+name: Code checks
+
+on: [push, pull_request]
+
+jobs:
+  codecheck:
+    name: Code checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+      - name: Set up python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+      - name: Install dependencies
+        run: |
+          pip3 install -r codecheck-requirements.txt
+          pip3 install --no-deps -e .
+      - name: black
+        run: black --check --diff c65of tests
+      - name: pylint
+        run: pylint c65of tests
+      - name: flake8
+        run: flake8 --max-line-length=100 --extend-ignore=E203,W503 c65of tests
+      - name: pyright
+        run: pyright

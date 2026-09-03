@@ -1,0 +1,31 @@
+---
+name: Unit tests
+
+on: [push, pull_request]
+
+jobs:
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v7
+      - name: Set up python-${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install dependencies
+        run: |
+          pip3 install -r test-requirements.txt
+          pip3 install --no-deps -e .
+      - name: Run unit tests
+        run: |
+          pytest -n auto --cov=c65of --cov-report=xml \
+            --cov-fail-under=90 tests
+      - if: ${{ matrix.python-version == '3.13' }}
+        name: Upload codecov
+        uses: codecov/codecov-action@v7

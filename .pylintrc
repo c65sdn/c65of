@@ -1,0 +1,18 @@
+[MAIN]
+jobs=0
+
+[MESSAGES CONTROL]
+# Protocol structs are wide by nature: field counts and constant tables are
+# dictated by the wire format, not by our design.
+disable=
+    duplicate-code,
+    too-few-public-methods,
+    too-many-arguments,
+    too-many-instance-attributes,
+    too-many-locals,
+    too-many-positional-arguments,
+# %-formatting is the house style shared with faucet.
+    consider-using-f-string,
+
+[FORMAT]
+max-line-length=100
