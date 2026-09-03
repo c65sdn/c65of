@@ -18,6 +18,7 @@ disable=
 # attributes are published on the class with their defaults instead.
     attribute-defined-outside-init,
     access-member-before-definition,
+    no-member,
 
 [FORMAT]
 max-line-length=100
