@@ -55,7 +55,9 @@ foreign = sorted({
     and not module.__file__.startswith(stdlib)
 })
 assert not foreign, foreign
-""" % ", ".join(MODULES)
+""" % ", ".join(
+    MODULES
+)
 
 
 def test_import_graph_is_stdlib_only():

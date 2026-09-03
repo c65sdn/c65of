@@ -674,3 +674,21 @@ def test_experimenter_multipart_matches_reference():
         multipart.OFPExperimenterMultipart.parser(buf, 0).to_jsondict()
         == ref.OFPExperimenterMultipart.parser(buf, 0).to_jsondict()
     )
+
+
+def test_empty_single_body_reply_is_rejected():
+    """A stats type that carries exactly one body must not be sent empty.
+
+    A truncated reply used to surface as a bare IndexError from inside the
+    receive loop; it is a malformed message and should say so.
+    """
+    buf = _reply_bytes(ref_ofp.OFPMP_DESC, b"")
+    with pytest.raises(ValueError, match="carries no body"):
+        multipart.OFPMultipartReply.parser(
+            DP,
+            ref_ofp.OFP_VERSION,
+            ref_ofp.OFPT_MULTIPART_REPLY,
+            len(buf),
+            0x12345678,
+            buf,
+        )

@@ -149,6 +149,10 @@ class OFPMultipartReply(MsgBase):
             body.append(entry)
             offset += cls._entry_length(entry)
         if cls.cls_body_single_struct:
+            if not body:
+                raise ValueError(
+                    "%s carries no body; the spec requires exactly one" % cls.__name__
+                )
             return body[0]
         return body
 
