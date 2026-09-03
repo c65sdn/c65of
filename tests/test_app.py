@@ -182,3 +182,35 @@ def test_hub_spawn_is_a_daemon():
     assert done.wait(5)
     hub.joinall([thread])
     hub.kill(thread)
+
+
+def test_ofp_events_are_generated_for_every_message():
+    """Importing the messages and regenerating gives each one an event class."""
+    # pylint: disable=import-outside-toplevel
+    from c65of import ofp_event
+    from c65of.ofproto.messages import OFPFlowMod
+
+    ofp_event.generate()
+    assert ofp_event.event_name("OFPPacketIn") == "EventOFPPacketIn"
+    ev_cls = ofp_event.ofp_msg_to_ev_cls(OFPFlowMod)
+    assert ev_cls is ofp_event.EventOFPFlowMod
+    assert ev_cls.__module__ == "c65of.ofp_event"
+
+    msg = OFPFlowMod(None, table_id=1)
+    ev = ofp_event.ofp_msg_to_ev(msg)
+    assert isinstance(ev, ofp_event.EventOFPFlowMod)
+    assert ev.msg is msg
+
+    # Idempotent: a second pass reuses the classes it already made.
+    ofp_event.generate()
+    assert ofp_event.ofp_msg_to_ev_cls(OFPFlowMod) is ev_cls
+
+
+def test_ofp_state_change_events():
+    """The datapath phase and port state events carry what they are given."""
+    # pylint: disable=import-outside-toplevel
+    from c65of import ofp_event
+
+    assert ofp_event.EventOFPStateChange("dp").datapath == "dp"
+    port = ofp_event.EventOFPPortStateChange("dp", 1, 3)
+    assert (port.datapath, port.reason, port.port_no) == ("dp", 1, 3)

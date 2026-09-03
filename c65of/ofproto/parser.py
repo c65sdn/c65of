@@ -73,7 +73,9 @@ class MsgBase(Codec):
     _ABSTRACT = True
     _LEAD = "datapath"
     _HIDDEN = "datapath"
-    _PASS_ARGS = True
+    # The structures a message carries -- actions, buckets, matches -- take no
+    # datapath, so it is not passed down into their from_jsondict.
+    _PASS_ARGS = False
 
     cls_msg_type = None
     version = None
@@ -622,6 +624,13 @@ class OFPInstructionActions(OFPInstruction):
     def _init_hook(self):
         if self.actions is None:
             self.actions = []
+
+    def iter_attrs(self):
+        # len only exists once serialized, as in os-ken.
+        yield "actions", self.actions
+        if self.len is not None:
+            yield "len", self.len
+        yield "type", self.type
 
     @classmethod
     def parse_body(cls, buf, offset, type_, len_):

@@ -121,7 +121,19 @@ def _gen_init(cls, params, hook):
     exec(src, namespace)  # pylint: disable=exec-used
     init = namespace["__init__"]
     init.__qualname__ = "%s.__init__" % cls.__name__
+    init.generated = True
     return init
+
+
+def _has_written_init(cls):
+    """True if this class or a base defines an __init__ we did not compile."""
+    for base in cls.__mro__:
+        if base is Codec:
+            break
+        init = base.__dict__.get("__init__")
+        if init is not None and not getattr(init, "generated", False):
+            return True
+    return False
 
 
 class Codec:
@@ -186,7 +198,7 @@ class Codec:
             )
         # _ABSTRACT is declared per class, never inherited: a concrete
         # subclass of an abstract base still wants a generated __init__.
-        if own.get("_ABSTRACT", False) or "__init__" in own:
+        if own.get("_ABSTRACT", False) or _has_written_init(cls):
             return
         params = [(n, REQUIRED) for n in lead]
         params += [(n, cls._DEFAULTS.get(n, 0)) for n in cls._NAMES]

@@ -16,6 +16,7 @@
 # limitations under the License.
 
 from c65of.packet import ether_types as ether
+from c65of.packet.ethernet import ethernet
 from c65of.packet.packet_base import ETHERTYPES, PacketBase
 
 VLAN_PCP_SHIFT = 13
@@ -30,6 +31,7 @@ class _vlan(PacketBase):  # pylint: disable=invalid-name
     _FIELDS = "tci ethertype"
     _EXTRA = "pcp cfi vid"
     _DEFAULTS = {"ethertype": ether.ETH_TYPE_IP}
+    _HIDDEN = "tci"
     _TYPES = ETHERTYPES
     _MIN_LEN = 4
 
@@ -38,12 +40,6 @@ class _vlan(PacketBase):  # pylint: disable=invalid-name
         self.cfi = cfi
         self.vid = vid
         self.ethertype = ethertype
-
-    def iter_attrs(self):
-        yield "pcp", self.pcp
-        yield "cfi", self.cfi
-        yield "vid", self.vid
-        yield "ethertype", self.ethertype
 
     @classmethod
     def parser(cls, buf):
@@ -67,3 +63,7 @@ class vlan(_vlan):  # pylint: disable=invalid-name
 
 class svlan(_vlan):  # pylint: disable=invalid-name
     """802.1ad service VLAN tag."""
+
+
+ethernet.register_packet_type(vlan, ether.ETH_TYPE_8021Q)
+ethernet.register_packet_type(svlan, ether.ETH_TYPE_8021AD)
