@@ -919,6 +919,50 @@ def test_datapath_id_is_set_before_observers_see_the_features_reply(channel):
         APPS.pop(observer.name, None)
 
 
+def test_a_reply_behind_the_port_description_is_dispatched_in_main(channel):
+    """A message right behind the last port description reaches a MAIN handler.
+
+    faucet provokes barriers from its CONFIG-phase features handler and reads
+    the replies in a MAIN-only handler, as os-ken's own applications do. Open
+    vSwitch answers in well under a millisecond, so if the phase only moved
+    once the handshake application had been scheduled, the reply behind it
+    would still be stamped CONFIG and silently dropped -- and faucet's sender
+    would time out after five seconds and close the channel. Moving the phase
+    on the receive thread takes the scheduler out of it.
+
+    Both frames go out in one write, which is what a switch that answers
+    immediately produces: one read, one parse, two dispatches.
+    """
+    seen = []
+    ready = threading.Event()
+
+    class BarrierObserver(OFApp):
+        """A MAIN-only barrier handler, registered the way faucet's is."""
+
+        @set_ev_cls(ofp_event.EventOFPBarrierReply, MAIN_DISPATCHER)
+        def barrier_reply(self, ev):
+            """Note the barrier this reply answers."""
+            seen.append(ev.msg.xid)
+            ready.set()
+
+    observer = BarrierObserver()
+    APPS[observer.name] = observer
+    observer.start()
+    try:
+        switch, _datapath = channel.connect()
+        switch.read_raw()
+        switch.send(hello_frame())
+        switch.send(features_frame(oken_parser.header(switch.read_raw())[3]))
+        switch.read_raw()
+        xid = oken_parser.header(switch.read_raw())[3]
+        switch.send(port_desc_frame(xid, (1,)) + frame(ofp.OFPT_BARRIER_REPLY, 0x5EED))
+        assert ready.wait(TIMEOUT), "the barrier reply was dropped as a CONFIG message"
+        assert seen == [0x5EED]
+    finally:
+        observer.stop()
+        APPS.pop(observer.name, None)
+
+
 def test_queued_message_is_sent_even_though_close_races_it(pair):
     """A message queued before close() still reaches the switch.
 
