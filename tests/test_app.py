@@ -16,6 +16,7 @@
 # limitations under the License.
 
 import queue
+import sys
 import threading
 
 import pytest
@@ -284,3 +285,33 @@ def test_undecorated_handler_is_dispatched():
     finally:
         app.stop()
         APPS.pop(app.name, None)
+
+
+def test_load_app_from_a_file_path(tmp_path):
+    """An application can be given as a path, not only a dotted module name.
+
+    --ryu-app-lists is given a path for an application that ships beside the
+    controller rather than inside it, and such an application may import
+    sibling files, so its own directory has to resolve.
+    """
+    (tmp_path / "helper.py").write_text("VALUE = 7\n", encoding="utf-8")
+    (tmp_path / "sideapp.py").write_text(
+        "from c65of.app import OFApp\n"
+        "from helper import VALUE\n"
+        "class SideApp(OFApp):\n"
+        '    """An app loaded from a path."""\n'
+        "    MARKER = VALUE\n",
+        encoding="utf-8",
+    )
+    cls = AppManager().load_app(str(tmp_path / "sideapp.py"))
+    assert cls is not None
+    assert cls.__name__ == "SideApp"
+    assert cls.MARKER == 7
+    # The directory is not left on the path afterwards.
+    assert str(tmp_path) not in sys.path
+
+
+def test_load_app_from_a_missing_path():
+    """A path that is not a module is an error naming the path."""
+    with pytest.raises((ImportError, FileNotFoundError)):
+        AppManager().load_app("/nonexistent/nope.py")
