@@ -448,13 +448,16 @@ def test_hello_version_bitmap_without_our_version_fails(channel):
 
 
 def test_hello_with_an_unsupported_version_fails(channel):
-    """A hello with a version we cannot parse is rejected as incompatible."""
+    """A hello offering only versions we do not speak is rejected.
+
+    An earlier version with no bitmap leaves nothing in common: the spec's
+    rule is min(sent, received), and 1.0 is below what this library speaks.
+    """
     switch, _datapath = channel.connect()
     switch.read_raw()
     switch.send(hello_frame(version=0x01))
     error = oken_decode(switch.read_raw())
     assert (error.type, error.code) == (ofp.OFPET_HELLO_FAILED, ofp.OFPHFC_INCOMPATIBLE)
-    assert b"0x01" in error.data
     assert switch.read_eof()
 
 
@@ -938,3 +941,51 @@ def test_queued_message_is_sent_even_though_close_races_it(pair):
         body += client.recv(length - 8 - len(body))
     err_type, err_code = struct.unpack_from("!HH", body)
     assert (err_type, err_code) == (ofp.OFPET_HELLO_FAILED, ofp.OFPHFC_INCOMPATIBLE)
+
+
+@pytest.mark.parametrize(
+    "version, versions",
+    [
+        # What Open vSwitch actually sends: it opens at its own highest
+        # version and offers a bitmap covering everything it speaks.
+        (0x06, [1, 2, 3, 4, 5, 6]),
+        (0x06, [4]),
+        # A later version with no bitmap: the spec's rule is min(sent, received).
+        (0x06, None),
+        (0x05, None),
+    ],
+)
+def test_a_switch_speaking_a_later_version_negotiates_down(channel, version, versions):
+    """A hello announcing a later protocol is negotiated down, not rejected.
+
+    A hello carries the version negotiation itself, so it has to be read
+    whatever version it announces. Rejecting it outright left every real
+    switch unable to connect while every test using a 1.3 hello passed.
+    """
+    switch, datapath = channel.connect()
+    assert_is_oken(switch.read_raw(), oken_msgs.OFPHello(OKEN_DP))
+    switch.send(hello_frame(version=version, versions=versions))
+    assert_is_oken(switch.read_raw(), oken_msgs.OFPFeaturesRequest(OKEN_DP))
+    assert datapath.state == CONFIG_DISPATCHER
+
+
+@pytest.mark.parametrize(
+    "version, versions",
+    [
+        # Offers a bitmap that does not include 1.3.
+        (0x06, [1, 5, 6]),
+        # Announces a version below ours and offers no bitmap.
+        (0x01, None),
+    ],
+)
+def test_a_switch_with_no_version_in_common_is_told_so(channel, version, versions):
+    """No usable version still gets an error rather than a silent drop."""
+    switch, datapath = channel.connect()
+    assert_is_oken(switch.read_raw(), oken_msgs.OFPHello(OKEN_DP))
+    switch.send(hello_frame(version=version, versions=versions))
+    raw = switch.read_raw()
+    parsed = oken_decode(raw)
+    assert parsed.type == ofp.OFPET_HELLO_FAILED
+    assert parsed.code == ofp.OFPHFC_INCOMPATIBLE
+    channel.observer.wait(("state", DEAD_DISPATCHER))
+    assert datapath.state == DEAD_DISPATCHER

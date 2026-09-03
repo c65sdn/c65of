@@ -165,8 +165,14 @@ def _message(cls):
 
 
 def msg(datapath, version, msg_type, msg_len, xid, buf):
-    """Parse one whole OpenFlow message."""
-    if version != ofproto.OFP_VERSION:
+    """Parse one whole OpenFlow message.
+
+    A hello is readable whatever version it announces: it carries the version
+    negotiation itself, and a switch that speaks a later protocol opens with
+    that version and expects to be negotiated down. Every other message has to
+    match the version this library speaks.
+    """
+    if version != ofproto.OFP_VERSION and msg_type != ofproto.OFPT_HELLO:
         raise OFPUnknownVersion("unsupported OpenFlow version 0x%02x" % version)
     if len(buf) < msg_len:
         raise OFPTruncatedMessage("message truncated: %d of %d" % (len(buf), msg_len))

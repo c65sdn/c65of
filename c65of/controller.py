@@ -199,6 +199,9 @@ class Datapath:
             ),
             close_socket=True,
         )
+        # Queued first, so the send loop drains the error before the sentinel
+        # close() puts behind it.
+        self.close()
 
     def _close_write(self):
         # Half close, so the switch sees the last bytes and closes its end.
