@@ -254,25 +254,38 @@ class Datapath:
     def _absorb(self, msg):
         """Record what the message says about the channel itself.
 
-        The datapath id has to be set before the event reaches any observer:
-        os-ken gets away with setting it in a handler because it runs its own
-        handlers inline on this thread, but here every observer -- including
-        the handshake application -- runs concurrently, and an application
-        that looks the datapath up by id would see None.
+        Everything here has to happen on this thread, before the event reaches
+        any observer: os-ken gets away with doing it in a handler because it
+        runs its own handlers inline on the receive thread, but here every
+        observer -- including the handshake application -- runs concurrently.
+
+        The datapath id, or an application looking the datapath up by id sees
+        None. The phase, or the next message off the wire is stamped with a
+        phase the handshake has already left, and every handler restricted to
+        the new phase silently drops it.
         """
         if isinstance(msg, self.ofproto_parser.OFPSwitchFeatures):
             self.id = msg.datapath_id
             # OpenFlow 1.3 moved the port list out of the features reply.
             self.ports = {}
+        elif self.state == CONFIG_DISPATCHER and isinstance(
+            msg, self.ofproto_parser.OFPPortDescStatsReply
+        ):
+            for port in msg.body:
+                self.ports[port.port_no] = port
+            if not msg.flags & ofp.OFPMPF_REPLY_MORE:
+                self.set_state(MAIN_DISPATCHER)
 
     def _dispatch(self, msg):
+        # The phase this message arrived in, which _absorb may then leave: the
+        # message that completes the handshake is itself a CONFIG message, as
+        # it is under os-ken.
+        state = self.state
         self._absorb(msg)
         # Queue and return: handlers run on their own application's thread, so
         # parsing the next message never waits on one of them.
         if self.ofp_brick is not None:
-            self.ofp_brick.send_event_to_observers(
-                ofp_event.ofp_msg_to_ev(msg), self.state
-            )
+            self.ofp_brick.send_event_to_observers(ofp_event.ofp_msg_to_ev(msg), state)
 
     def _echo_request_loop(self):
         if not self.max_unreplied_echo_requests:
@@ -494,25 +507,15 @@ class OFPHandler(OFApp):
         """Record the datapath id, configure the switch and ask for its ports."""
         msg = ev.msg
         datapath = msg.datapath
-        # The id and the empty port map are set by Datapath._absorb, before
-        # any observer sees this event.
+        # The id and the empty port map are set by Datapath._absorb, which
+        # also fills the ports in and completes the handshake when the port
+        # description arrives, before any observer sees that event.
         datapath.send_msg(
             datapath.ofproto_parser.OFPSetConfig(
                 datapath, ofp.OFPC_FRAG_NORMAL, ofp.OFPCML_NO_BUFFER
             )
         )
         datapath.send_msg(datapath.ofproto_parser.OFPPortDescStatsRequest(datapath, 0))
-
-    @set_ev_handler(ofp_event.EventOFPPortDescStatsReply, CONFIG_DISPATCHER)
-    def multipart_reply_handler(self, ev):
-        """Fill in the ports; the last part completes the handshake."""
-        msg = ev.msg
-        datapath = msg.datapath
-        for port in msg.body:
-            datapath.ports[port.port_no] = port
-        if msg.flags & ofp.OFPMPF_REPLY_MORE:
-            return
-        datapath.set_state(MAIN_DISPATCHER)
 
     @set_ev_handler(
         ofp_event.EventOFPEchoRequest,
