@@ -244,7 +244,22 @@ class Datapath:
                 if msg is not None:
                     self._dispatch(msg)
 
+    def _absorb(self, msg):
+        """Record what the message says about the channel itself.
+
+        The datapath id has to be set before the event reaches any observer:
+        os-ken gets away with setting it in a handler because it runs its own
+        handlers inline on this thread, but here every observer -- including
+        the handshake application -- runs concurrently, and an application
+        that looks the datapath up by id would see None.
+        """
+        if isinstance(msg, self.ofproto_parser.OFPSwitchFeatures):
+            self.id = msg.datapath_id
+            # OpenFlow 1.3 moved the port list out of the features reply.
+            self.ports = {}
+
     def _dispatch(self, msg):
+        self._absorb(msg)
         # Queue and return: handlers run on their own application's thread, so
         # parsing the next message never waits on one of them.
         if self.ofp_brick is not None:
@@ -471,9 +486,8 @@ class OFPHandler(OFApp):
         """Record the datapath id, configure the switch and ask for its ports."""
         msg = ev.msg
         datapath = msg.datapath
-        datapath.id = msg.datapath_id
-        # OpenFlow 1.3 moved the port list out of the features reply.
-        datapath.ports = {}
+        # The id and the empty port map are set by Datapath._absorb, before
+        # any observer sees this event.
         datapath.send_msg(
             datapath.ofproto_parser.OFPSetConfig(
                 datapath, ofp.OFPC_FRAG_NORMAL, ofp.OFPCML_NO_BUFFER

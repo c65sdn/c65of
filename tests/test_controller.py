@@ -870,3 +870,40 @@ def test_handler_creates_a_controller_when_given_none(monkeypatch):
         handler.stop()
         handler.close()
     assert handler.controller.stopped
+
+
+def test_datapath_id_is_set_before_observers_see_the_features_reply(channel):
+    """Every observer of the features reply sees the datapath already named.
+
+    os-ken sets the id inside its own handler and gets away with it because it
+    runs that handler inline on the read thread. Here every observer runs
+    concurrently on its own thread, so an application looking the datapath up
+    by id -- as faucet does -- would race the handshake application and see
+    None. Setting it in the channel removes the race.
+    """
+    seen = []
+    ready = threading.Event()
+
+    class NamingObserver(OFApp):
+        """Records the datapath id at the moment the event is delivered."""
+
+        @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
+        def features(self, ev):
+            """Note what the datapath was called when this arrived."""
+            seen.append(ev.msg.datapath.id)
+            ready.set()
+
+    observer = NamingObserver()
+    APPS[observer.name] = observer
+    observer.start()
+    try:
+        switch, _datapath = channel.connect()
+        switch.read_raw()
+        switch.send(hello_frame())
+        raw = switch.read_raw()
+        switch.send(features_frame(oken_parser.header(raw)[3]))
+        assert ready.wait(SOCKET_TIMEOUT)
+        assert seen == [DPID]
+    finally:
+        observer.stop()
+        APPS.pop(observer.name, None)
