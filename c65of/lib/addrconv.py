@@ -37,7 +37,13 @@ class _IPConverter:
         self._addr = ipaddress.IPv4Address if version == 4 else ipaddress.IPv6Address
 
     def text_to_bin(self, text):
-        """Packed address, or ``(addr, netmask)`` for a ``addr/mask`` text."""
+        """Packed address, or ``(addr, netmask)`` for a ``addr/mask`` text.
+
+        Callers pass an :mod:`ipaddress` object as readily as a string, so
+        anything with a text form is accepted.
+        """
+        if not isinstance(text, str):
+            text = str(text)
         try:
             return socket.inet_pton(self.family, text)
         except OSError:
@@ -61,6 +67,8 @@ class _MacConverter:
     @staticmethod
     def text_to_bin(text):
         """Packed form of a ``xx:xx:xx:xx:xx:xx`` address."""
+        if not isinstance(text, str):
+            text = str(text)
         octets = text.split(":")
         if len(octets) != 6:
             raise ValueError("not a MAC address: %r" % (text,))

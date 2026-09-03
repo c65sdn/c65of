@@ -15,6 +15,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import ipaddress
+
 import os_ken.lib.addrconv as ref_addrconv
 import os_ken.lib.mac as ref_mac
 import os_ken.lib.type_desc as ref_type_desc
@@ -179,3 +181,25 @@ def test_unknown_type_is_base64():
     )
     encoded = type_desc.UnknownType.to_user(data)
     assert type_desc.UnknownType.from_user(encoded) == data
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        ipaddress.IPv4Address("10.0.0.1"),
+        ipaddress.ip_address("fe80::1"),
+        "0e:00:00:00:00:01",
+    ],
+)
+def test_non_string_addresses_are_accepted(value):
+    """An ipaddress object converts, as it did through netaddr.
+
+    faucet passes ipaddress objects straight into these converters.
+    """
+    if isinstance(value, str):
+        assert addrconv.mac.text_to_bin(value) == ref_addrconv.mac.text_to_bin(value)
+        return
+    converter = addrconv.ipv6 if value.version == 6 else addrconv.ipv4
+    reference = ref_addrconv.ipv6 if value.version == 6 else ref_addrconv.ipv4
+    assert converter.text_to_bin(value) == reference.text_to_bin(value)
+    assert converter.text_to_bin(value) == converter.text_to_bin(str(value))
