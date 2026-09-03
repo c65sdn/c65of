@@ -261,3 +261,26 @@ def test_stream_server_stops_when_closed():
     hub.spawn(serve)
     server.close()
     assert done.wait(5)
+
+
+def test_undecorated_handler_is_dispatched():
+    """register_handler accepts a plain callable, not only a decorated method.
+
+    Without this the dispatch loop raises looking up a callers mapping that is
+    not there, outside the per-handler guard, and the app's thread dies
+    silently.
+    """
+    app = Recorder()
+    seen = []
+    app.register_handler(Pong, seen.append)
+    APPS[app.name] = app
+    app.start()
+    try:
+        app.send_event(app.name, Pong(), MAIN_DISPATCHER)
+        app.send_event(app.name, Ping(1))
+        assert app.arrived.wait(5)
+        assert len(seen) == 1
+        assert app.main_thread.is_alive()
+    finally:
+        app.stop()
+        APPS.pop(app.name, None)

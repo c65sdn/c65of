@@ -135,10 +135,13 @@ class OFApp:
 
     def get_handlers(self, ev, state=None):
         """Handlers for ``ev`` that are interested in phase ``state``."""
+        ev_cls = type(ev)
         return [
             handler
-            for handler in self._handlers.get(type(ev), [])
-            for dispatchers in [handler.callers[type(ev)]]
+            for handler in self._handlers.get(ev_cls, [])
+            # A handler registered directly, rather than through set_ev_cls,
+            # has no phase restriction and no callers mapping.
+            for dispatchers in [getattr(handler, "callers", {}).get(ev_cls, [])]
             if not dispatchers or state is None or state in dispatchers
         ]
 
